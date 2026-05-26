@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.DS_Store
+*.log
+com.kaita.forza.sdPlugin/*.js
+com.kaita.forza.sdPlugin/*.js.map

@@ -1,0 +1,39 @@
+{
+  "Actions": [
+    {
+      "Name": "Forza Telemetry",
+      "UUID": "com.kaita.forza.telemetry",
+      "Icon": "imgs/actions/telemetry",
+      "Tooltip": "Shows current speed and RPM",
+      "States": [
+        {
+          "Image": "imgs/actions/telemetry",
+          "TitleAlignment": "middle",
+          "FontSize": "14"
+        }
+      ]
+    }
+  ],
+  "Author": "KaiTa",
+  "Name": "Forza Telemetry",
+  "Description": "Stream Deck plugin for Forza telemetry data.",
+  "URL": "https://example.com",
+  "Version": "1.0.0",
+  "SDKVersion": 2,
+  "Software": {
+    "MinimumVersion": "6.6"
+  },
+  "OS": [
+    {
+      "Platform": "windows",
+      "MinimumVersion": "10"
+    }
+  ],
+  "CodePath": "plugin.js",
+  "Icon": "imgs/plugin",
+  "UUID": "com.kaita.forza",
+  "Nodejs": {
+    "Version": "20",
+    "Debug": "enabled"
+  }
+}
