@@ -108,6 +108,18 @@ const HTML = `<!DOCTYPE html>
 
   .controls-section { margin-bottom: 14px; }
   .controls-section h2 { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
+
+  /* Speed toggle */
+  .speed-card { cursor: pointer; user-select: none; }
+  .speed-card:hover { border-color: var(--accent); }
+
+  /* RPM gauge canvas */
+  #rpm-gauge { width: 100%; height: auto; display: block; margin: 4px 0; }
+
+  /* Steer bar */
+  .steer-track { height: 8px; background: #222; border-radius: 4px; position: relative; margin-top: 6px; overflow: hidden; }
+  .steer-center-mark { position: absolute; left: 50%; top: 0; width: 2px; height: 100%; background: #555; transform: translateX(-50%); z-index: 1; }
+  .steer-fill { position: absolute; top: 0; height: 100%; border-radius: 2px; transition: left .06s, width .06s; }
 </style>
 </head>
 <body>
@@ -119,14 +131,14 @@ const HTML = `<!DOCTYPE html>
 
 <!-- Hero stats -->
 <div class="hero">
-  <div class="hero-card">
+  <div class="hero-card speed-card" id="speed-card" title="Click to toggle mph / kph">
     <div class="label">Speed</div>
     <div class="value" id="h-speed">—</div>
-    <div class="unit">mph</div>
+    <div class="unit" id="h-speed-unit">mph</div>
   </div>
   <div class="hero-card">
     <div class="label">RPM</div>
-    <div class="value" id="h-rpm">—</div>
+    <canvas id="rpm-gauge" width="200" height="110"></canvas>
     <div class="unit">/ <span id="h-maxrpm">—</span></div>
   </div>
   <div class="hero-card">
@@ -201,6 +213,10 @@ const HTML = `<!DOCTYPE html>
     <div class="stat-row"><span class="stat-key">Drivetrain</span><span class="stat-value" id="s-drive">—</span></div>
     <div class="stat-row"><span class="stat-key">Cylinders</span><span class="stat-value" id="s-cyl">—</span></div>
     <div class="stat-row"><span class="stat-key">Steer</span><span class="stat-value" id="s-steer">—</span></div>
+    <div class="steer-track">
+      <div class="steer-center-mark"></div>
+      <div class="steer-fill" id="steer-bar"></div>
+    </div>
   </div>
 
   <!-- Motion -->
@@ -282,12 +298,14 @@ const HTML = `<!DOCTYPE html>
     ws.onmessage = (e) => {
       const d = JSON.parse(e.data);
 
-      const speedMph = Math.round(d.speed * 2.237);
+      const speedVal = speedUnit === 'mph'
+        ? Math.round(d.speed * 2.237)
+        : Math.round(d.speed * 3.6);
       const gear = d.currentGear === 0 ? 'N' : String(d.currentGear);
 
       // Hero
-      set('h-speed', speedMph);
-      set('h-rpm',   Math.round(d.currentEngineRpm));
+      set('h-speed', speedVal);
+      drawRpmGauge(d.currentEngineRpm, d.engineMaxRpm);
       set('h-maxrpm', Math.round(d.engineMaxRpm));
       set('h-gear',   gear);
       set('h-pos',    d.racePosition || '—');
@@ -323,6 +341,24 @@ const HTML = `<!DOCTYPE html>
       set('s-drive', DRIVETRAINS[d.drivetrainType] ?? '—');
       set('s-cyl',   d.numCylinders);
       set('s-steer', d.steer);
+      const steerBar = document.getElementById('steer-bar');
+      if (steerBar) {
+        const sv = d.steer ?? 0;
+        if (sv < 0) {
+          const w = Math.abs(sv) / 127 * 50;
+          steerBar.style.left = (50 - w) + '%';
+          steerBar.style.width = w + '%';
+          steerBar.style.background = '#6090e8';
+        } else if (sv > 0) {
+          const w = sv / 127 * 50;
+          steerBar.style.left = '50%';
+          steerBar.style.width = w + '%';
+          steerBar.style.background = 'var(--accent)';
+        } else {
+          steerBar.style.left = '50%';
+          steerBar.style.width = '0%';
+        }
+      }
 
       // Motion
       set('s-yaw',  fmt(d.yaw,  3));
@@ -349,6 +385,99 @@ const HTML = `<!DOCTYPE html>
         set('ts-' + id, 'slip ' + fmt(d[sk], 3));
       }
     };
+  }
+
+  // ── Speed unit toggle ────────────────────────────────────────────────────────
+  let speedUnit = 'mph';
+  document.getElementById('speed-card').addEventListener('click', () => {
+    speedUnit = speedUnit === 'mph' ? 'kph' : 'mph';
+    document.getElementById('h-speed-unit').textContent = speedUnit;
+  });
+
+  // ── RPM analogue gauge ───────────────────────────────────────────────────────
+  function drawRpmGauge(rpm, maxRpm) {
+    const canvas = document.getElementById('rpm-gauge');
+    if (!canvas || !maxRpm) return;
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    // Semicircular dial: centre sits 10 px below canvas bottom so the endpoints
+    // of the arc land at the very bottom edge of the canvas (no gap).
+    const cx = w / 2, cy = h - 10;
+    const r  = cy - 12;                    // leaves ~12 px clearance at top
+
+    const startA   = Math.PI;              // 9 o'clock  = 0 RPM
+    const sweep    = Math.PI;              // 180° sweep to 3 o'clock = max RPM
+    const f        = Math.min(Math.max(rpm / maxRpm, 0), 1);
+    const needleA  = startA + sweep * f;
+    const redZoneF = 0.8;
+
+    // ── Background track
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, startA, startA + sweep, false);
+    ctx.strokeStyle = '#2a2a2a';
+    ctx.lineWidth   = 10;
+    ctx.lineCap     = 'butt';
+    ctx.stroke();
+
+    // ── Green zone (0 → needle, capped at redZoneF)
+    if (f > 0) {
+      const greenEnd = f <= redZoneF ? needleA : startA + sweep * redZoneF;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, startA, greenEnd, false);
+      ctx.strokeStyle = '#3ecf60';
+      ctx.lineWidth   = 10;
+      ctx.lineCap     = 'butt';
+      ctx.stroke();
+    }
+
+    // ── Red zone (redZoneF → needle)
+    if (f > redZoneF) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, startA + sweep * redZoneF, needleA, false);
+      ctx.strokeStyle = '#e85050';
+      ctx.lineWidth   = 10;
+      ctx.lineCap     = 'butt';
+      ctx.stroke();
+    }
+
+    // ── Tick marks at every 10 %
+    for (let i = 0; i <= 10; i++) {
+      const tf      = i / 10;
+      const ta      = startA + sweep * tf;
+      const isMajor = i % 2 === 0;
+      const outerR  = r - 2;
+      const innerR  = r - (isMajor ? 16 : 10);
+      ctx.beginPath();
+      ctx.moveTo(cx + innerR * Math.cos(ta), cy + innerR * Math.sin(ta));
+      ctx.lineTo(cx + outerR * Math.cos(ta), cy + outerR * Math.sin(ta));
+      ctx.strokeStyle = tf >= redZoneF ? '#e85050' : '#666';
+      ctx.lineWidth   = isMajor ? 2 : 1;
+      ctx.stroke();
+    }
+
+    // ── Needle
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + (r - 14) * Math.cos(needleA), cy + (r - 14) * Math.sin(needleA));
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth   = 2;
+    ctx.lineCap     = 'round';
+    ctx.stroke();
+
+    // ── Centre cap
+    ctx.beginPath();
+    ctx.arc(cx, cy, 5, 0, 2 * Math.PI);
+    ctx.fillStyle = '#e8a020';
+    ctx.fill();
+
+    // ── Current RPM label
+    ctx.fillStyle       = '#e8a020';
+    ctx.font            = 'bold 18px "Segoe UI", system-ui, sans-serif';
+    ctx.textAlign       = 'center';
+    ctx.textBaseline    = 'middle';
+    ctx.fillText(Math.round(rpm).toLocaleString(), cx, cy - r * 0.45);
   }
 
   connect();
