@@ -29,7 +29,7 @@
       "MinimumVersion": "10"
     }
   ],
-  "CodePath": "plugin.js",
+  "CodePath": "bin/plugin.js",
   "Icon": "imgs/plugin",
   "UUID": "com.kaita.forza",
   "Nodejs": {

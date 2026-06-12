@@ -99,30 +99,53 @@ export interface ForzaTelemetry {
 }
 
 export class ForzaTelemetryListener {
-  private server: dgram.Socket;
+  private server?: dgram.Socket;
   private listeners: ((data: ForzaTelemetry) => void)[] = [];
+  private errorListeners: ((err: Error) => void)[] = [];
 
-  constructor(private port: number = 5300, private host: string = "127.0.0.1") {
-    this.server = dgram.createSocket("udp4");
+  constructor(private port: number = 5300, private host: string = "127.0.0.1") {}
+
+  get running(): boolean {
+    return this.server !== undefined;
   }
 
   start(): void {
-    this.server.bind(this.port, this.host);
-    this.server.on("message", (msg: Buffer) => {
+    if (this.server) return;
+
+    const server = dgram.createSocket("udp4");
+    this.server = server;
+
+    // Without a handler, a bind failure (e.g. EADDRINUSE when the dashboard
+    // is also running) is an unhandled 'error' event and kills the process.
+    server.on("error", (err: Error) => {
+      this.stop();
+      this.errorListeners.forEach((listener) => listener(err));
+    });
+
+    server.on("listening", () => {
+      console.log(`Listening for Forza telemetry on ${this.host}:${this.port}`);
+    });
+
+    server.on("message", (msg: Buffer) => {
       if (msg.length < 323) return;
       const data = this.parsePacket(msg);
       this.listeners.forEach((listener) => listener(data));
     });
 
-    console.log(`Listening for Forza telemetry on ${this.host}:${this.port}`);
+    server.bind(this.port, this.host);
   }
 
   stop(): void {
-    this.server.close();
+    this.server?.close();
+    this.server = undefined;
   }
 
   onTelemetry(callback: (data: ForzaTelemetry) => void): void {
     this.listeners.push(callback);
+  }
+
+  onError(callback: (err: Error) => void): void {
+    this.errorListeners.push(callback);
   }
 
   private parsePacket(buf: Buffer): ForzaTelemetry {

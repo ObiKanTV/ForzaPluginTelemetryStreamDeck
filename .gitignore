@@ -4,3 +4,4 @@ dist/
 *.log
 com.kaita.forza.sdPlugin/*.js
 com.kaita.forza.sdPlugin/*.js.map
+com.kaita.forza.sdPlugin/bin/

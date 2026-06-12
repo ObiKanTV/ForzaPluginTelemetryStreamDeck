@@ -2,14 +2,15 @@
   "name": "forza-streamdeck-plugin",
   "version": "1.0.0",
   "description": "Stream Deck plugin for Forza Horizon 6 telemetry",
-  "main": "com.kaita.forza.sdPlugin/plugin.js",
+  "main": "com.kaita.forza.sdPlugin/bin/plugin.js",
   "scripts": {
-    "build": "tsc",
-    "watch": "tsc --watch",
-    "dev": "npm run build && node com.kaita.forza.sdPlugin/plugin.js",
-    "listen": "npm run build && node com.kaita.forza.sdPlugin/listen.js",
-    "ui": "npm run build && node com.kaita.forza.sdPlugin/ui-server.js",
-    "dump": "npm run build && node com.kaita.forza.sdPlugin/dump.js"
+    "build": "tsc && node build.mjs",
+    "watch": "node build.mjs --watch",
+    "typecheck": "tsc",
+    "listen": "npm run build && node dist/listen.cjs",
+    "ui": "npm run build && node dist/ui-server.cjs",
+    "dump": "npm run build && node dist/dump.cjs",
+    "verify": "node verify-e2e.mjs"
   },
   "dependencies": {
     "@elgato/streamdeck": "^2.1.0",
@@ -18,6 +19,7 @@
   "devDependencies": {
     "@types/node": "^20.0.0",
     "@types/ws": "^8.18.1",
+    "esbuild": "^0.25.0",
     "typescript": "^5.0.0"
   }
 }
